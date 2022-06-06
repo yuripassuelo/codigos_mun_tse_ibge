@@ -1,0 +1,158 @@
+
+# Arquivos Eleição
+
+library( tidyverse )
+library( data.table )
+
+
+
+path_data <- "C:/Users/T-Gamer/Desktop/Eleicoes/data/2018/"
+
+arquivo_2018 <-
+  fread( paste0( path_data, "votacao_secao_2018_BR.csv" ) )
+
+
+base_agg_mun <-
+  arquivo_2018 %>%
+    group_by( NR_TURNO, CD_MUNICIPIO, SG_UF, NM_MUNICIPIO, NR_VOTAVEL, NM_VOTAVEL )%>%
+    summarise( QT_VOTOS = sum( QT_VOTOS, na.rm = TRUE ))
+
+
+library( geobr )
+
+
+dta_muni <- read_municipality(code_muni="all", year=2018)
+
+rel_cod_abbrev <-
+  data.frame( abbrev_state = dta_muni$abbrev_state, 
+               code_state   = dta_muni$code_state  ) %>%
+  group_by( abbrev_state, code_state )%>%
+  summarise( )
+
+library(XML)
+library(RCurl)
+library( httr )
+library( rvest )
+
+
+url_ibge <- "https://www.ibge.gov.br/explica/codigos-dos-municipios.php"
+
+url_ibge %>%
+  read_html()%>%
+  html_nodes( "table" ) %>% 
+  html_table( fill = T )
+
+
+
+base_2_turno <-
+  filter( base_agg_mun, NR_TURNO == 2 & SG_UF != "ZZ" ) %>%
+  select( -c( NM_VOTAVEL )) %>%
+  pivot_wider( .,
+               id_cols     = c( "NR_TURNO", "CD_MUNICIPIO", "SG_UF", "NM_MUNICIPIO" ),
+               names_from  = "NR_VOTAVEL",
+               values_from = "QT_VOTOS")%>%
+  left_join(., rel_cod_abbrev, by = c( "SG_UF" = "abbrev_state" ) )%>%
+  mutate( COD_MUN = as.character( as.numeric( code_state )*100000 + CD_MUNICIPIO ),
+          
+          across( .cols = c( "13", "17", "95", "96" ), 
+                  .fns  = ~replace( ., is.na(.), 0 )),
+          
+          TOTAL   = `13` + `17` + `95` + `96`,
+          
+          across( .cols  = c( "13", "17", "95", "96" ),
+                  .fns   = ~./TOTAL,
+                  .names = "PER_{.col}")) %>%
+  left_join( .,
+             mutate( dta_muni, code_muni = as.character( code_muni ) ),
+             by = c( "COD_MUN" = "code_muni" ) )
+
+
+
+
+library( geobr )
+
+map_mun <- geobr::read_municipality( code_muni = "all", year = 2018 )
+
+  
+library( fuzzyjoin )
+
+select( base_2_turno, NM_MUNICIPIO, CD_MUNICIPIO )
+
+names_muni <- tibble( names_muni   = dta_muni$name_muni,
+                      cod_ibge     = dta_muni$code_state,
+                      cod_estado   = dta_muni$abbrev_state )%>%
+    mutate( upper_name = str_to_upper( names_muni ),
+            
+            upper_name = str_replace_all( upper_name, "D'", "D ") )
+              
+
+teste_join <-
+  fuzzyjoin::stringdist_inner_join(
+  select( names_muni, upper_name, cod_estado ) ,
+  select( ungroup( base_2_turno), NM_MUNICIPIO, SG_UF ),
+  by = c( "upper_name" = "NM_MUNICIPIO", "cod_estado" = "SG_UF" ),
+  distance_col = "dist"
+)
+
+teste_join %>%
+  group_by( upper_name )%>%
+  arrange( dist )%>%
+  mutate( min_dist = min( dist ) )%>%
+  filter( min_dist == dist )%>%View()
+
+teste_join_2 <-
+  map( .x = unique( dta_muni$abbrev_state ),
+       function( .uf ){
+         
+         fuzzyjoin::stringdist_inner_join(
+           select( names_muni, upper_name, cod_estado ) %>%
+             filter( cod_estado == .uf ),
+           select( ungroup( base_2_turno), NM_MUNICIPIO, SG_UF )%>%
+             filter( SG_UF == .uf ),
+           by = c( "upper_name" = "NM_MUNICIPIO" ),
+           distance_col = "dist"
+         )%>%
+           mutate( UF = .uf )
+         
+       })%>%bind_rows()
+
+
+teste_join_2 %>%
+  group_by( upper_name, UF )%>%
+  summarise( dist = min( dist ) )%>%
+  filter( dist >= 1 )%>%
+  View()
+
+teste_join_2 %>%
+  filter( dist == 0 ) %>% # View()
+  group_by( upper_name, UF )%>%
+  summarise( n = n() )%>%
+  nrow()
+
+case_when(
+  upper_name == "AÇU"                    ~ "ASSÚ",
+  upper_name == "ALVORADA D'OESTE"       ~ "ALVORADA DO OESTE",
+  upper_name == "ANHANGUERA"             ~ "ANHANGÜERA",
+  upper_name == "ANTÔNIO OLINTO"         ~ "ANTONIO OLINTO",
+  upper_name == "ATÍLIO VIVACQUA"        ~ "ATÍLIO VIVÁCQUA",
+  upper_name == "CAÉM"                   ~ "CAEM",
+  upper_name == "CAMACAN"                ~ "CAMACÃ",
+  upper_name == "ELDORADO DO CARAJÁS"    ~ "ELDORADO DOS CARAJÁS",
+  upper_name == "ESPIGÃO D'OESTE"        ~ "ESPIGÃO DO OESTE",
+  upper_name == "GRACHO CARDOSO"         ~ "GRACCHO CARDOSO",
+  upper_name == "GRÃO PARÁ"              ~ "GRÃO-PARÁ",
+  upper_name == "LUÍS CORREIA"           ~ "LUIS CORREIA",
+  upper_name == "OLHO D'ÁGUA"            ~ "OLHO D ÁGUA",
+  upper_name == "QUIJINGUE"              ~ "QUINJINGUE",
+  upper_name == "SANT'ANA DO LIVRAMENTO" ~ "SANT ANA DO LIVRAMENTO",
+  upper_name == "SANTA IZABEL DO PARÁ"   ~ "SANTA ISABEL DO PARÁ",
+  upper_name == "SANTO ANTÔNIO DO CAIUÁ" ~ "SANTO ANTONIO DO CAIUÁ",
+  upper_name == "SANTO ESTÊVÃO"          ~ "SANTO ESTEVÃO",
+  upper_name == "SÃO LUIZ DO PARAITINGA" ~ "SÃO LUÍS DO PARAITINGA",
+  upper_name == "SEM-PEIXE"              ~ "SEM PEIXE",
+  upper_name == "WESTFÁLIA"              ~ "WESTFALIA"
+  
+)
+
+
+
