@@ -96,8 +96,8 @@ mun_cods_ibge <-
 # Carrega dados TSE
 
 mun_cods_tse <-
-  fread( "./data/TSE/votacao_secao_2018_BR.csv", 
-         select = c( "SG_UF", "SG_UE", "CD_MUNICIPIO", "NM_MUNICIPIO") )
+  readRDS( "./data/TSE/votacao_secao_2018_BR.rds" ) %>%
+  select( SG_UF, SG_UE, CD_MUNICIPIO, NM_MUNICIPIO ) 
 
 mun_cods_tse <-
   mun_cods_tse %>%

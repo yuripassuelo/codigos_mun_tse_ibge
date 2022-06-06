@@ -10,7 +10,7 @@ source( "./src/00.setup.R")
 # Le Arquivo TSE
 
 arquivo_2018 <-
-  fread( "./data/TSE/votacao_secao_2018_BR.csv" ) 
+  readRDS( "./data/TSE/votacao_secao_2018_BR.rds" ) 
 
 # Le De para fito
 

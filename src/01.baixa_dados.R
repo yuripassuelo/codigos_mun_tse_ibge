@@ -1,5 +1,5 @@
 
-# Criaçao da relação de Codigos de Municipios TSE e IBGE
+# Download dos arquivos de eleição do TSE e divisão territorial IBGE
 # Autor: Yuri de Macedo Passuelo
 # Data : 04/06/2022
 
@@ -87,7 +87,13 @@ baixa_dados_2018 <-
     
     archive_extract( paste0( tse_path, .file ), dir = tse_path )
     
-    # Exclusão do Arquivo `.zip`
+    # Lendo arquivo `.csv` e salvando no formato `.rds`
+    
+    csv_file <- fread( paste0( tse_path, str_replace( .file, ".zip", ".csv" )) )
+    
+    saveRDS( csv_file, paste0( tse_path, str_replace( .file, ".zip", ".rds" )) )
+    
+    # Exclusão do Arquivo `.zip` e `.csv` para liberar espaço
     
     if( .exc_zip ){
       
@@ -96,12 +102,14 @@ baixa_dados_2018 <-
       closeAllConnections()
       
       file.remove( paste0( tse_path, .file ) )
+      file.remove( paste0( tse_path, str_replace( .file, ".zip", ".csv" )) )
     }
   }
 
 
 baixa_dados_2018( )
-# Carregando informaçoes de Nome e Codigo Municípios TSE
+
+gc()
 
 
 
